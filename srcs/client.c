@@ -59,6 +59,10 @@ void *client_thread(void *arg) {
                 const char *info = show_users(0);
                 send(fd, info, strlen(info), 0);
             }
+            if (strncmp(buf, "/chats", 6) == 0) {
+                const char *info = show_rooms(0);
+                send(fd, info, strlen(info), 0);
+            }
             else if (strncmp(buf, "/dm", 3) == 0) {
                 char *cmd = strtok(buf, " ");
                 char *id_str = strtok(NULL, " ");
@@ -173,7 +177,7 @@ void *client_thread(void *arg) {
             }
         }
         else{
-            snprintf(msg, sizeof msg, "[%s] %s", name, buf);
+            snprintf(msg, sizeof msg, "[%s] %s", name, buf); // 오버플로 위험 있다는 거 발견..
             multicast(msg, fd);
         }
     }

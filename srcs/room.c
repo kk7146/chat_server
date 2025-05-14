@@ -3,7 +3,7 @@
 #include "server.h"
 
 int create_room(const char *name) {
-    for (int i = 0; i < MAX_ROOM; i++) {
+    for (int i = 0; i < MAX_ROOMS; i++) {
         if (rooms[i].id == -1) {
             rooms[i].id = i;
             strncpy(rooms[i].name, name, NAME_LEN);
@@ -16,7 +16,7 @@ int create_room(const char *name) {
 }
 
 int join_room(int client_idx, int room_id) {
-    for (int i = 0; i < MAX_ROOM; i++) {
+    for (int i = 0; i < MAX_ROOMS; i++) {
         if (rooms[i].id == room_id) {
             for (int j = 0; j < MAX_ROOM_CLIENTS; j++) {
                 if (rooms[i].users[j] == NULL) {
@@ -34,7 +34,7 @@ int join_room(int client_idx, int room_id) {
 
 int leave_room(int client_idx) {
     int current_room = clients[client_idx].chat_room;
-    for (int i = 0; i < MAX_ROOM; i++) {
+    for (int i = 0; i < MAX_ROOMS; i++) {
         if (rooms[i].id == current_room) {
             for (int j = 0; j < MAX_ROOM_CLIENTS; j++) {
                 if (rooms[i].users[j] == &clients[client_idx]) {

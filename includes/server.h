@@ -7,7 +7,7 @@
 #define ADMIN_PORT 9001
 #define MAX_CLIENTS 64
 #define MAX_ROOM_CLIENTS 20
-#define MAX_ROOM 64
+#define MAX_ROOMS 64
 #define BUF_SIZE 256
 #define NAME_LEN 32
 #define ROOM_NAME_LEN 32
@@ -28,7 +28,7 @@ typedef struct {
 } Room;
 
 extern Client clients[MAX_CLIENTS];
-extern Room rooms[MAX_ROOM];
+extern Room rooms[MAX_ROOMS];
 extern pthread_mutex_t mutex;
 
 char *show_users(int isAdmin);
