@@ -32,5 +32,6 @@ extern Room rooms[MAX_ROOMS];
 extern pthread_mutex_t mutex;
 
 char *show_users(int isAdmin);
+char *show_rooms(int isAdmin);
 
 #endif

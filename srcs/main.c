@@ -14,6 +14,8 @@ int main() {
     for (int i = 0; i < MAX_CLIENTS; i++) clients[i].fd = -1;
     for (int i = 0; i < MAX_ROOMS; i++) rooms[i].id = -1;
 
+    create_room("Main room");
+
     int chat_fd = create_server_socket(CHAT_PORT);
     int admin_fd = create_server_socket(ADMIN_PORT);
 

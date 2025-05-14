@@ -59,7 +59,7 @@ void *client_thread(void *arg) {
                 const char *info = show_users(0);
                 send(fd, info, strlen(info), 0);
             }
-            if (strncmp(buf, "/chats", 6) == 0) {
+            else if (strncmp(buf, "/chats", 6) == 0) {
                 const char *info = show_rooms(0);
                 send(fd, info, strlen(info), 0);
             }
