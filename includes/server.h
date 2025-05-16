@@ -19,12 +19,16 @@ typedef struct {
     pthread_t tid;
     int chat_room;
     int pending_request_from;
+    Client *next;
+    Client *prev;
 } Client;
 
 typedef struct {
     int id;
     char name[ROOM_NAME_LEN];
-    Client *users[MAX_ROOM_CLIENTS];
+    Client *users;
+    Room *next;
+    Room *prev;
 } Room;
 
 extern Client clients[MAX_CLIENTS];
