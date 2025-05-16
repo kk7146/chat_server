@@ -31,11 +31,18 @@ typedef struct {
     Room *prev;
 } Room;
 
-extern Client clients[MAX_CLIENTS];
+extern Client *clients_head;
 extern Room rooms[MAX_ROOMS];
 extern pthread_mutex_t mutex;
 
 char *show_users(int isAdmin);
 char *show_rooms(int isAdmin);
+
+Client* find_by_client_name(Client *head, char *name);
+Client* find_by_client_fd(Client *head, int fd);
+void free_all_clients(Client **head);
+int add_client(Client **head, char *name, int fd, int chat_room_id, int pending_request_from);
+void remove_client(Client **head, const char *name);
+
 
 #endif
