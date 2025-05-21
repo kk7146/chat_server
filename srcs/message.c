@@ -6,35 +6,45 @@
 #include <sys/socket.h>
 #include "message.h"
 
-void broadcast(const char *msg, int exclude_fd) {
+// 여기 근데 pthread_mutex_lock 안 걸어도 괜찮지 않나? 싶긴 하지만..
+
+void broadcast(const char *msg, Client* self) {
+    if (self != NULL)
+        return ;
     pthread_mutex_lock(&mutex);
-    for (int i = 0; i < MAX_CLIENTS; i++) {
-        if (clients[i].fd != -1 && clients[i].fd != exclude_fd) {
-            send(clients[i].fd, msg, strlen(msg), 0);
-        }
+    Client *current = clients_head;
+    while (current != NULL) {
+        if (strcmp(current->name, self->name) != 0)
+            send(current->fd, msg, strlen(msg), 0);
+        current = current->next;
     }
     pthread_mutex_unlock(&mutex);
 }
 
-int find_users_tid() {
-    for (int i = 0; i < MAX_CLIENTS; i++)
-        if (clients[i].tid == pthread_self())
-            return i;
-}
-
-void unicast(const char *msg, char dest_idx[NAME_LEN]) {
+void unicast(const char *msg, Client* target) {
+    if (target != NULL)
+        return ;
     pthread_mutex_lock(&mutex);
-    for (int i = 0; i < MAX_CLIENTS; i++) {
-        if (clients[i].fd != -1 && strcmp(clients[i].name, dest_idx) == 0) {
-            send(clients[i].fd, msg, strlen(msg), 0);
-        }
+    Client *current = clients_head;
+    while (current != NULL) {
+        if (strcmp(current->name, target->name))
+            send(current->fd, msg, strlen(msg), 0);
+        current = current->next;
     }
     pthread_mutex_unlock(&mutex);
 }
 
-void multicast(const char *msg, int exclude_fd) {
+void multicast(const char *msg, Client* self) {
+    if (self != NULL)
+        return ;
     pthread_mutex_lock(&mutex);
-    int user_idx = find_users_tid();
+    Client *current = clients_head;
+    while (current != NULL) {
+        if (self->chat_room == current->chat_room)
+            send(current->fd, msg, strlen(msg), 0);
+        current = current->next;
+    }
+
     for (int i = 0; i < MAX_CLIENTS; i++) {
         if (clients[i].fd != -1 && clients[i].fd != exclude_fd && clients[i].chat_room == clients[user_idx].chat_room) {
             send(clients[i].fd, msg, strlen(msg), 0);

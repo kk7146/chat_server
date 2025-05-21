@@ -5,51 +5,58 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 #include "client.h"
-#include "room.h"
 #include "message.h"
 
-int register_client(int fd, const char *name) {
-    int idx = -1;
-    for (int i = 0; i < MAX_CLIENTS; i++) {
-        if (clients[i].fd == -1) {
-            clients[i].fd = fd;
-            strncpy(clients[i].name, name, NAME_LEN);
-            clients[i].tid = pthread_self();
-            clients[i].chat_room = DEFAULT_ROOM;
-            clients[i].pending_request_from = -1;
-            idx = i;
-            return idx;
-        }
-    }
-}
-
-void *client_thread(void *arg) {
-    int fd = *(int *)arg;
-    free(arg);
-    char buf[BUF_SIZE];
+// 이름 받고 클라이언트 등록 시도
+static int prompt_name_and_register(int fd, char *name) {
     char name[NAME_LEN];
 
     send(fd, "Enter your name: ", 18, 0);
     int len = recv(fd, name, NAME_LEN - 1, 0);
-    if (len <= 0) {
-        close(fd);
-        return NULL;
+    if (len <= 0) return -1;
+
+    name[len - 1] = '\0';  // 개행 제거
+    if (find_client_name(clients_head, name)) {
+        send(fd, "[System] That name is already taken.\n", 37, 0);
+        return -1;
     }
-    name[len - 1] = '\0';
 
     pthread_mutex_lock(&mutex);
-    int idx = register_client(fd, name);
+    int result = add_client(&clients_head, name, fd, DEFAULT_ROOM, -1);
     pthread_mutex_unlock(&mutex);
 
-    if (idx == -1) {
-        send(fd, "Too many users. Try later.\n", 28, 0);
-        close(fd);
-        return NULL;
+    if (result == 0) {
+        strncpy(name, name, NAME_LEN);
     }
+    return result;
+}
 
-    snprintf(buf, sizeof buf, "%s joined the system.\n", name);
-    broadcast(buf, fd);
-    printf("[+] %s connected\n", name);
+// 루프 돌면서 이름 등록 시도
+static void handle_client_registration(int fd, char *name) {
+    while (1) {
+        if (prompt_name_and_register(fd, name) == 0) {
+            char buf[BUF_SIZE];
+            snprintf(buf, sizeof buf, "%s joined the system.\n", name);
+            broadcast(buf, fd);
+            printf("[+] %s connected\n", name);
+            return;
+        }
+        send(fd, "[System] Try another name.\n", 29, 0);
+    }
+}
+
+void *client_thread(void *arg) {
+    char name[NAME_LEN];
+    Client *self;
+    int len;
+
+    int fd = *(int *)arg;
+    free(arg);
+    char buf[BUF_SIZE];
+
+    handle_client_registration(fd, name);
+
+    self = find_by_client_name(clients_head, name);
 
     while ((len = recv(fd, buf, BUF_SIZE - 1, 0)) > 0) {
         buf[len] = '\0';
@@ -84,22 +91,30 @@ void *client_thread(void *arg) {
                 char *target_name = strtok(NULL, " \n");
             
                 if (target_name) {
-                    int target_idx = -1;
                     pthread_mutex_lock(&mutex);
-                    for (int i = 0; i < MAX_CLIENTS; i++) {
-                        if (clients[i].fd != -1 && strcmp(clients[i].name, target_name) == 0) {
-                            target_idx = i;
-                            break;
-                        }
-                    }
-                    if (target_idx != -1) {
-                        clients[target_idx].pending_request_from = idx;
+                    Client* target = find_by_client_name(clients_head, target_name);
+                    //for (int i = 0; i < MAX_CLIENTS; i++) {
+                    //    if (clients[i].fd != -1 && strcmp(clients[i].name, target_name) == 0) {
+                    //        target_idx = i;
+                    //        break;
+                    //    }
+                    //}
+                    if (target != NULL) {
+                        target->pending_request_from = self;
                         snprintf(msg, sizeof msg, "[System] %s has requested a 1:1 chat. Type /accept to join.\n", name);
                         send(clients[target_idx].fd, msg, strlen(msg), 0);
                     } else {
                         send(fd, "[System] User not found.\n", 26, 0);
                     }
                     pthread_mutex_unlock(&mutex);
+                    //if (target_idx != -1) {
+                    //    clients[target_idx].pending_request_from = idx;
+                    //    snprintf(msg, sizeof msg, "[System] %s has requested a 1:1 chat. Type /accept to join.\n", name);
+                    //    send(clients[target_idx].fd, msg, strlen(msg), 0);
+                    //} else {
+                    //    send(fd, "[System] User not found.\n", 26, 0);
+                    //}
+                    //pthread_mutex_unlock(&mutex);
                 } else {
                     send(fd, "Usage: /start <id>\n", 20, 0);
                 }

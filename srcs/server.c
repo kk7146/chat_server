@@ -5,10 +5,10 @@
 #include "server.h"
 
 Client *client_head;
-Room rooms[MAX_ROOMS];
+Room *room_head;
 pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 
-char *show_users(int isAdmin) {
+char *show_clients(int isAdmin) {
     static char list[BUF_SIZE * 4];
     size_t used = 0;
     size_t remain = sizeof(list);
@@ -55,33 +55,7 @@ char *show_users(int isAdmin) {
     return list;
 }
 
-char *show_rooms(int isAdmin) {
-    static char list[BUF_SIZE * 4];
-    pthread_mutex_lock(&mutex);
-    strcpy(list, "======== Available Chat Rooms ========\n");
-
-    for (int i = 0; i < MAX_ROOMS; i++) {
-        if (rooms[i].id != -1) {
-            char line[128];
-            snprintf(line, sizeof(line), "Room ID:%d    Room Name:%s", rooms[i].id, rooms[i].name);
-
-            if (isAdmin) {
-                //char admin_info[128];
-                //snprintf(admin_info, sizeof(admin_info), "\tTID:%lu\tRoom:%d", 
-                //        (unsigned long)rooms[i].tid, rooms[i].chat_room);
-                //strcat(line, admin_info);
-            }
-            strcat(line, "\n");
-            strcat(list, line);
-        }
-    }
-
-    strcat(list, "======================================\n");
-    pthread_mutex_unlock(&mutex);
-    return list;
-}
-
-Client* find_by_client_name(Client *head, char *name) {
+Client* find_by_client_name(Client *head, const char *name) {
     Client *current = head;
 
     if (name == NULL || head == NULL) return NULL;
@@ -107,6 +81,17 @@ Client* find_by_client_fd(Client *head, int fd) {
     return NULL;
 }
 
+int count_client(Client *head) {
+    int counter = 0;
+    Client *current = head;
+
+    while (current != NULL) {
+        counter++;
+        current = current->next;
+    }
+    return counter;
+}
+
 void free_all_clients(Client **head) {
     Client *current = *head;
     while (current != NULL) {
@@ -117,16 +102,26 @@ void free_all_clients(Client **head) {
     *head = NULL;
 }
 
-int add_client(Client **head, char *name, int fd, int chat_room_id, int pending_request_from) {
+int add_client(Client **head, const char *name, int fd, int chat_room_id, Client* pending_request_from) {
     Client *new_node = (Client *)malloc(sizeof(Client));
+    new_node->next = NULL;
+    new_node->prev = NULL;
     if (new_node == NULL) {
-        send(fd, "[System] internal error\n", 25, 0);
+        send(fd, "[System] Internal error\n", 25, 0);
         return -1;
     }
     
+    // MAX_CLIENTS보다 크면 안됨
+    if (count_client(*head) >= MAX_CLIENTS) {
+        send(fd, "[System] Too many users. Try later.\n", 35, 0);
+        free(new_node);
+        return -1;
+    }
+
     // 똑같은 이름의 유저의 경우
-    if (find_by_client_name(*head, name) == NULL) {
+    if (find_by_client_name(*head, name) != NULL) {
         send(fd, "[System] That username is already taken.\n", 39, 0);
+        free(new_node);
         return -1;
     }
 
@@ -155,8 +150,197 @@ int add_client(Client **head, char *name, int fd, int chat_room_id, int pending_
     return (0);
 }
 
-void remove_client(Client **head, const char *name) {
+int remove_client(Client **head, const char *name) {
     Client *remove_node = find_by_client_name(*head, name);
+
+    if (remove_node == NULL)
+        return -1;
+    if (remove_node->prev != NULL)
+        remove_node->prev->next = remove_node->next;
+    else
+        *head = remove_node->next;
+    if (remove_node->next != NULL)
+        remove_node->next->prev = remove_node->prev;
+    free(remove_node);
+    return 0;
+}
+
+
+char *show_rooms(int isAdmin) {
+    static char list[BUF_SIZE * 4];
+    size_t used = 0;
+    size_t remain = sizeof(list);
+
+    pthread_mutex_lock(&mutex);
+    snprintf(list, remain, "============== Available Rooms ==============\n");
+    used = strlen(list);
+
+    Room *current = room_head;
+    while (current != NULL) {
+        char line[256];
+        if (isAdmin) {
+            snprintf(line, sizeof(line),
+                     "ID:%d\tName:%s\tHost:%s\t[%d/%d]\n",
+                     current->id,
+                     current->name,
+                     current->host_name,
+                     current->clients_num,
+                     current->max_clients);
+        } else {
+            snprintf(line, sizeof(line),
+                     "ID:%d\tName:%s\t[%d/%d]\n",
+                     current->id,
+                     current->name,
+                     current->clients_num,
+                     current->max_clients);
+        }
+
+        size_t line_len = strlen(line);
+        if (used + line_len < sizeof(list)) {
+            memcpy(list + used, line, line_len);
+            used += line_len;
+            list[used] = '\0';
+        } else {
+            // list 공간 부족 시에 나오는 메세지
+            snprintf(list + used, sizeof(list) - used,
+                     "[... some users not shown due to size limit ...]\n");
+            break;
+        }
+
+        current = current->next;
+    }
+    const char *footer = "=============================================\n";
+    if (used + strlen(footer) < sizeof(list)) {
+        strncat(list, footer, sizeof(list) - strlen(list) - 1);
+    }
+
+    pthread_mutex_unlock(&mutex);
+    return list;
+}
+
+Room* find_by_room_name(Room *head, const char *name) {
+    Room *current = head;
+
+    if (name == NULL) return NULL;
+    while (current != NULL) {
+        if (strcmp(current->name, name) == 0) {
+            return current;
+        }
+        current = current->next;
+    }
+    return NULL;
+}
+
+Room* find_by_room_id(Room *head, int id) {
+    Room *current = head;
+
+    while (current != NULL) {
+        if (current->id == id) {
+            return current;
+        }
+        current = current->next;
+    }
+    return NULL;
+}
+
+int count_room(Room *head) {
+    int counter = 0;
+    Room *current = head;
+
+    while (current != NULL) {
+        counter++;
+        current = current->next;
+    }
+    return counter;
+}
+
+static int find_smallest_room_id(Room *head) {
+    int next_id = 0;
+    Room *current = head;
+    while (current && current->id == next_id) {
+        next_id++;
+        current = current->next;
+    }
+    return next_id;
+}
+
+int add_room(Room **head, const char *name, int fd, int room_size) {
+    if (room_size <= 0 || room_size > ROOM_CLIENTS_MAX_SIZE)
+        room_size = ROOM_CLIENTS_DEFAULT_SIZE;
+    Room *new_node = (Room *)malloc(sizeof(Room));
+    new_node->next = NULL;
+    new_node->prev = NULL;
+    if (new_node == NULL) {
+        send(fd, "[System] Internal error\n", 25, 0);
+        return -1;
+    }
+    
+    // MAX_ROOMS보다 크면 안됨
+    if (count_room(*head) >= MAX_ROOMS) {
+        send(fd, "[System] Too many rooms. Try later.\n", 35, 0);
+        free(new_node);
+        return -1;
+    }
+
+    // 똑같은 이름의 룸이 있는 경우
+    if (find_by_room_name(*head, name) != NULL) {
+        send(fd, "[System] That room name is already taken.\n", 39, 0);
+        free(new_node);
+        return -1;
+    }
+
+    // 값 넣기
+    strncpy(new_node->name, name, NAME_LEN - 1);
+    new_node->name[NAME_LEN - 1] = '\0';
+    new_node->id = find_smallest_room_id(*head);
+    new_node->max_clients = room_size;
+    new_node->clients_num = 0;
+
+    // 삽입 위치 결정
+    if (*head == NULL || (*head)->id > new_node->id) {
+        new_node->next = *head;
+        new_node->prev = NULL;
+        if (*head) 
+            (*head)->prev = new_node;
+        *head = new_node;
+    } else {
+        Room *curr = *head;
+        while (curr->next && curr->next->id < new_node->id)
+            curr = curr->next;
+        new_node->next = curr->next;
+        if (curr->next)
+            curr->next->prev = new_node;
+        curr->next = new_node;
+        new_node->prev = curr;
+    }
+    return (0);
+}
+
+int join_room(Client *target_client, int id) {
+    Room *target_room = find_by_room_id(room_head, id);
+    if (target_room == NULL)
+        return -1;
+    if (target_room->max_clients <= target_room->clients_num)
+        return -1;
+    target_client->chat_room = target_room->id;
+    target_room->clients_num++;
+    return (0);
+}
+
+int leave_room(Client *target_client) {
+    Room *target_room = find_by_room_id(room_head, target_client->chat_room);
+    if (target_room == NULL)
+        return -1;
+    target_client->chat_room = DEFAULT_ROOM;
+    if (target_room->clients_num > 0) // 아래에서 0 이하면 삭제해서 빼도 괜찮긴 한데.. 언더로 플로우 나는 경우.. 방어할거야..
+        target_room->clients_num--;
+    if (target_room->clients_num <= 0)
+        remove_room(&room_head, target_room->id);
+    return (0);
+}
+
+void remove_room(Room **head, int id) {
+    Room *remove_node = find_by_room_id(*head, id);
 
     if (remove_node == NULL)
         return ;
@@ -167,5 +351,15 @@ void remove_client(Client **head, const char *name) {
     if (remove_node->next != NULL)
         remove_node->next->prev = remove_node->prev;
     free(remove_node);
-    return;
+    return ;
+}
+
+void free_all_rooms(Room **head) {
+    Room *current = *head;
+    while (current != NULL) {
+        Room *next = current->next;
+        free(current);
+        current = next;
+    }
+    *head = NULL;
 }
