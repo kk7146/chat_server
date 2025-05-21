@@ -9,12 +9,10 @@
 // 여기 근데 pthread_mutex_lock 안 걸어도 괜찮지 않나? 싶긴 하지만..
 
 void broadcast(const char *msg, Client* self) {
-    if (self != NULL)
-        return ;
     pthread_mutex_lock(&mutex);
     Client *current = clients_head;
     while (current != NULL) {
-        if (strcmp(current->name, self->name) != 0)
+        if (self == NULL || strcmp(current->name, self->name) != 0)
             send(current->fd, msg, strlen(msg), 0);
         current = current->next;
     }
@@ -22,12 +20,12 @@ void broadcast(const char *msg, Client* self) {
 }
 
 void unicast(const char *msg, Client* target) {
-    if (target != NULL)
+    if (target == NULL)
         return ;
     pthread_mutex_lock(&mutex);
     Client *current = clients_head;
     while (current != NULL) {
-        if (strcmp(current->name, target->name))
+        if (strcmp(current->name, target->name) == 0)
             send(current->fd, msg, strlen(msg), 0);
         current = current->next;
     }
@@ -35,20 +33,14 @@ void unicast(const char *msg, Client* target) {
 }
 
 void multicast(const char *msg, Client* self) {
-    if (self != NULL)
+    if (self == NULL)
         return ;
     pthread_mutex_lock(&mutex);
     Client *current = clients_head;
     while (current != NULL) {
-        if (self->chat_room == current->chat_room)
+        if (strcmp(current->name, self->name) != 0 && self->chat_room == current->chat_room)
             send(current->fd, msg, strlen(msg), 0);
         current = current->next;
-    }
-
-    for (int i = 0; i < MAX_CLIENTS; i++) {
-        if (clients[i].fd != -1 && clients[i].fd != exclude_fd && clients[i].chat_room == clients[user_idx].chat_room) {
-            send(clients[i].fd, msg, strlen(msg), 0);
-        }
     }
     pthread_mutex_unlock(&mutex);
 }
