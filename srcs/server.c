@@ -102,27 +102,27 @@ void free_all_clients(Client **head) {
     *head = NULL;
 }
 
-int add_client(Client **head, const char *name, int fd, int chat_room_id, Client* pending_request_from) {
+Client *add_client(Client **head, const char *name, int fd, int chat_room_id, Client* pending_request_from) {
     Client *new_node = (Client *)malloc(sizeof(Client));
-    new_node->next = NULL;
-    new_node->prev = NULL;
     if (new_node == NULL) {
         send(fd, "[System] Internal error\n", 25, 0);
-        return -1;
+        return NULL;
     }
+    new_node->next = NULL;
+    new_node->prev = NULL;
     
     // MAX_CLIENTS보다 크면 안됨
     if (count_client(*head) >= MAX_CLIENTS) {
         send(fd, "[System] Too many users. Try later.\n", 35, 0);
         free(new_node);
-        return -1;
+        return NULL;
     }
 
     // 똑같은 이름의 유저의 경우
     if (find_by_client_name(*head, name) != NULL) {
         send(fd, "[System] That username is already taken.\n", 39, 0);
         free(new_node);
-        return -1;
+        return NULL;
     }
 
     // 값 넣기
@@ -137,7 +137,7 @@ int add_client(Client **head, const char *name, int fd, int chat_room_id, Client
     if (*head == NULL) {
         new_node->prev = NULL;
         *head = new_node;
-        return (0);
+        return new_node;
     }
 
     // 맨 끝 노드 찾이서 넣기
@@ -147,7 +147,7 @@ int add_client(Client **head, const char *name, int fd, int chat_room_id, Client
     }
     tail->next = new_node;
     new_node->prev = tail;
-    return (0);
+    return new_node;
 }
 
 int remove_client(Client **head, const char *name) {
@@ -264,7 +264,7 @@ static int find_smallest_room_id(Room *head) {
     return next_id;
 }
 
-int add_room(Room **head, const char *name, int fd, int room_size) {
+Room *add_room(Room **head, const char *name, int fd, int room_size) {
     if (room_size <= 0 || room_size > ROOM_CLIENTS_MAX_SIZE)
         room_size = ROOM_CLIENTS_DEFAULT_SIZE;
     Room *new_node = (Room *)malloc(sizeof(Room));
@@ -272,21 +272,21 @@ int add_room(Room **head, const char *name, int fd, int room_size) {
     new_node->prev = NULL;
     if (new_node == NULL) {
         send(fd, "[System] Internal error\n", 25, 0);
-        return -1;
+        return NULL;
     }
     
     // MAX_ROOMS보다 크면 안됨
     if (count_room(*head) >= MAX_ROOMS) {
         send(fd, "[System] Too many rooms. Try later.\n", 35, 0);
         free(new_node);
-        return -1;
+        return NULL;
     }
 
     // 똑같은 이름의 룸이 있는 경우
     if (find_by_room_name(*head, name) != NULL) {
         send(fd, "[System] That room name is already taken.\n", 39, 0);
         free(new_node);
-        return -1;
+        return NULL;
     }
 
     // 값 넣기

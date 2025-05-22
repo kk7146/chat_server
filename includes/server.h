@@ -45,14 +45,14 @@ Client* find_by_client_name(Client *head, const char *name);
 Client* find_by_client_fd(Client *head, int fd);
 int count_client(Client *head);
 void free_all_clients(Client **head);
-int add_client(Client **head, const char *name, int fd, int chat_room_id, Client* pending_request_from);
+Client *add_client(Client **head, const char *name, int fd, int chat_room_id, Client* pending_request_from);
 int remove_client(Client **head, const char *name);
 
 char *show_rooms(int isAdmin);
 Room* find_by_room_name(Room *head, const char *name);
 Room* find_by_room_id(Room *head, int id);
 int count_room(Room *head);
-int add_room(Room **head, const char *name, int fd, int room_size);
+Room* add_room(Room **head, const char *name, int fd, int room_size);
 int join_room(Client *target_client, int id);
 int leave_room(Client *target_client);
 void remove_room(Room **head, int id);
