@@ -2,10 +2,11 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <sys/socket.h>
 #include "server.h"
 
-Client *client_head;
-Room *room_head;
+Client *clients_head = NULL;
+Room *rooms_head = NULL;
 pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 
 char *show_clients(int isAdmin) {
@@ -17,7 +18,7 @@ char *show_clients(int isAdmin) {
     snprintf(list, remain, "============== Connected Users ==============\n");
     used = strlen(list);
 
-    Client *current = client_head;
+    Client *current = clients_head;
     while (current != NULL) {
         char line[256];
         if (isAdmin) {
@@ -175,7 +176,7 @@ char *show_rooms(int isAdmin) {
     snprintf(list, remain, "============== Available Rooms ==============\n");
     used = strlen(list);
 
-    Room *current = room_head;
+    Room *current = rooms_head;
     while (current != NULL) {
         char line[256];
         if (isAdmin) {
@@ -271,20 +272,23 @@ Room *add_room(Room **head, const char *name, int fd, int room_size) {
     new_node->next = NULL;
     new_node->prev = NULL;
     if (new_node == NULL) {
-        send(fd, "[System] Internal error\n", 25, 0);
+        if (fd != -1)
+            send(fd, "[System] Internal error\n", 25, 0);
         return NULL;
     }
     
     // MAX_ROOMS보다 크면 안됨
     if (count_room(*head) >= MAX_ROOMS) {
-        send(fd, "[System] Too many rooms. Try later.\n", 35, 0);
+        if (fd != -1)
+            send(fd, "[System] Too many rooms. Try later.\n", 35, 0);
         free(new_node);
         return NULL;
     }
 
     // 똑같은 이름의 룸이 있는 경우
     if (find_by_room_name(*head, name) != NULL) {
-        send(fd, "[System] That room name is already taken.\n", 39, 0);
+        if (fd != -1)
+            send(fd, "[System] That room name is already taken.\n", 39, 0);
         free(new_node);
         return NULL;
     }
@@ -316,8 +320,7 @@ Room *add_room(Room **head, const char *name, int fd, int room_size) {
     return (0);
 }
 
-int join_room(Client *target_client, int id) {
-    Room *target_room = find_by_room_id(room_head, id);
+int join_room(Client *target_client, Room *target_room) {
     if (target_room == NULL)
         return -1;
     if (target_room->max_clients <= target_room->clients_num)
@@ -328,14 +331,14 @@ int join_room(Client *target_client, int id) {
 }
 
 int leave_room(Client *target_client) {
-    Room *target_room = find_by_room_id(room_head, target_client->chat_room);
+    Room *target_room = find_by_room_id(rooms_head, target_client->chat_room);
     if (target_room == NULL)
         return -1;
     target_client->chat_room = DEFAULT_ROOM;
     if (target_room->clients_num > 0) // 아래에서 0 이하면 삭제해서 빼도 괜찮긴 한데.. 언더로 플로우 나는 경우.. 방어할거야..
         target_room->clients_num--;
     if (target_room->clients_num <= 0)
-        remove_room(&room_head, target_room->id);
+        remove_room(&rooms_head, target_room->id);
     return (0);
 }
 

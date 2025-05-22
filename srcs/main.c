@@ -11,7 +11,7 @@
 #include "server.h"
 
 int main() {
-    create_room("Main room");
+    add_room(&rooms_head, "Main room,", -1, MAX_CLIENTS);
 
     int chat_fd = create_server_socket(CHAT_PORT);
     int admin_fd = create_server_socket(ADMIN_PORT);

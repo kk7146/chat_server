@@ -16,7 +16,7 @@ static Client *name_register(int fd) {
     if (len <= 0) return NULL;
 
     name[len - 1] = '\0';
-    if (find_client_name(clients_head, name)) {
+    if (find_by_client_name(clients_head, name)) {
         send(fd, "[System] That name is already taken.\n", 37, 0);
         return NULL;
     }
@@ -62,7 +62,7 @@ void *client_thread(void *arg) {
         char msg[BUF_SIZE + NAME_LEN];
         if (buf[0] == '/') {
             if (strncmp(buf, "/users", 6) == 0) {
-                const char *info = show_users(0);
+                const char *info = show_clients(0);
                 send_to_fd(info, fd);
             }
             else if (strncmp(buf, "/chats", 6) == 0) {
@@ -114,10 +114,10 @@ void *client_thread(void *arg) {
                     snprintf(room_name, sizeof(room_name), "%s&%s", requester->name, self->name);
 
                     pthread_mutex_lock(&mutex);
-                    Room *room_current = add_room(&rooms_head, room_name, self->fd, 2);
-                    if (room_current != NULL) {
-                        join_room(requester, room_current);
-                        join_room(self, room_current);
+                    Room *room_new = add_room(&rooms_head, room_name, self->fd, 2);
+                    if (room_new != NULL) {
+                        join_room(requester, room_new);
+                        join_room(self, room_new);
                         self->pending_request_from = NULL;
             
                         snprintf(msg, sizeof msg, "[System] 1:1 chat with %s started.\n", requester->name);
@@ -162,13 +162,16 @@ void *client_thread(void *arg) {
                 }
                 else {
                     int room_id = atoi(room_str);
-                    if (room_id < 0) {
+                    pthread_mutex_lock(&mutex);
+                    Room *target = find_by_room_id(rooms_head, room_id);
+                    if (target == NULL) {
                         send_to_fd("[System] Invalid room ID.\n", fd);
                     }
-                    else if (join_room(self, room_id) == -1)
+                    else if (join_room(self, target) == -1)
                         send_to_fd("[System] Failed to enter the chat room.\n", fd);
                     else
                         send_to_fd("[System] You have entered the chat room.\n", fd);
+                    pthread_mutex_unlock(&mutex);
                 }
             }
             else if (strncmp(buf, "/exit", 5) == 0) {
@@ -187,7 +190,7 @@ void *client_thread(void *arg) {
             }
         }
         else{
-            snprintf(msg, sizeof(msg) - 1, "[%s] %s", self->name, buf);
+            snprintf(msg, sizeof(msg), "[%s] %.200s", self->name, buf);
             msg[sizeof(msg) - 1] = '\0';
             pthread_mutex_lock(&mutex);
             multicast(msg, self);

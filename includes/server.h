@@ -14,7 +14,10 @@
 #define ROOM_CLIENTS_MAX_SIZE 50 // 설정할 수 있는 방의 크기 MAX
 #define DEFAULT_ROOM 0
 
-typedef struct {
+typedef struct Client Client;
+typedef struct Room Room;
+
+struct Client {
     int fd;
     char name[NAME_LEN];
     pthread_t tid;
@@ -22,9 +25,9 @@ typedef struct {
     Client *pending_request_from;
     Client *next;
     Client *prev;
-} Client;
+};
 
-typedef struct {
+struct Room {
     int id;
     char name[ROOM_NAME_LEN];
     int max_clients;
@@ -32,13 +35,13 @@ typedef struct {
     char host_name[NAME_LEN];
     Room *next;
     Room *prev;
-} Room;
+};
 
 extern Client *clients_head;
 extern Room *rooms_head;
 extern pthread_mutex_t mutex;
 
-char *show_users(int isAdmin);
+char *show_clients(int isAdmin);
 char *show_rooms(int isAdmin);
 
 Client* find_by_client_name(Client *head, const char *name);
@@ -53,7 +56,7 @@ Room* find_by_room_name(Room *head, const char *name);
 Room* find_by_room_id(Room *head, int id);
 int count_room(Room *head);
 Room* add_room(Room **head, const char *name, int fd, int room_size);
-int join_room(Client *target_client, int id);
+int join_room(Client *target_client, Room *target_room);
 int leave_room(Client *target_client);
 void remove_room(Room **head, int id);
 void free_all_rooms(Room **head);
