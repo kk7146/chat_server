@@ -330,19 +330,7 @@ int join_room(Client *target_client, Room *target_room) {
     return (0);
 }
 
-int leave_room(Client *target_client) {
-    Room *target_room = find_by_room_id(rooms_head, target_client->chat_room);
-    if (target_room == NULL)
-        return -1;
-    target_client->chat_room = DEFAULT_ROOM;
-    if (target_room->clients_num > 0) // 아래에서 0 이하면 삭제해서 빼도 괜찮긴 한데.. 언더로 플로우 나는 경우.. 방어할거야..
-        target_room->clients_num--;
-    if (target_room->clients_num <= 0)
-        remove_room(&rooms_head, target_room->id);
-    return (0);
-}
-
-void remove_room(Room **head, int id) {
+static void remove_room(Room **head, int id) { // 단순히 방을 지우는 함수. 외부에서 호출되면 안될 듯.
     Room *remove_node = find_by_room_id(*head, id);
 
     if (remove_node == NULL)
@@ -353,8 +341,34 @@ void remove_room(Room **head, int id) {
         *head = remove_node->next;
     if (remove_node->next != NULL)
         remove_node->next->prev = remove_node->prev;
+    
     free(remove_node);
     return ;
+}
+
+int leave_room(Client *target_client) {
+    Room *target_room = find_by_room_id(rooms_head, target_client->chat_room);
+    if (target_room == NULL)
+        return -1;
+    target_client->chat_room = DEFAULT_ROOM;
+    if (target_room->clients_num > 0) // 아래에서 0 이하면 삭제해서 빼도 괜찮긴 한데. 언더로 플로우 나는 경우. 일단 방어함.
+        target_room->clients_num--;
+    if (target_room->id != DEFAULT_ROOM &&target_room->clients_num <= 0)
+        remove_room(&rooms_head, target_room->id);
+    return (0);
+}
+
+void remove_room_kick_all_clients(Room *target) { // 암시적으로 방을 삭제한다는 의미도 같이 존재. leave room의 내장 기능에 있기 때문.
+    Client *current = clients_head;
+    Client *next; // 방이 삭제될 수 있기 때문에 미리 next 저장하게 함.
+
+    while (current != NULL) {
+        next = current->next;  // 미리 next 저장
+        if (current->chat_room == target->id) {
+            leave_room(current);
+        }
+        current = next;
+    }
 }
 
 void free_all_rooms(Room **head) {

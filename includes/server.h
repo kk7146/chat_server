@@ -58,7 +58,7 @@ int count_room(Room *head);
 Room* add_room(Room **head, const char *name, int fd, int room_size);
 int join_room(Client *target_client, Room *target_room);
 int leave_room(Client *target_client);
-void remove_room(Room **head, int id);
 void free_all_rooms(Room **head);
+void remove_room_kick_all_clients(Room *target); // 방 삭제랑 동일한 의미
 
 #endif
