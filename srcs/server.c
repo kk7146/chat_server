@@ -38,8 +38,7 @@ char *show_clients(int isAdmin) {
             memcpy(list + used, line, line_len);
             used += line_len;
             list[used] = '\0';
-        } else {
-            // list 공간 부족 시에 나오는 메세지
+        } else { // list 공간 부족 시
             snprintf(list + used, sizeof(list) - used,
                      "[... some users not shown due to size limit ...]\n");
             break;
@@ -296,6 +295,7 @@ Room *add_room(Room **head, const char *name, int fd, int room_size) {
     // 값 넣기
     strncpy(new_node->name, name, NAME_LEN - 1);
     new_node->name[NAME_LEN - 1] = '\0';
+    new_node->host_name[0] = '\0';
     new_node->id = find_smallest_room_id(*head);
     new_node->max_clients = room_size;
     new_node->clients_num = 0;
@@ -325,6 +325,9 @@ int join_room(Client *target_client, Room *target_room) {
         return -1;
     if (target_room->max_clients <= target_room->clients_num)
         return -1;
+    if (target_room->id != DEFAULT_ROOM && target_room->host_name[0] == '\0') {
+        change_host(target_client, target_room);
+    }
     target_client->chat_room = target_room->id;
     target_room->clients_num++;
     return (0);
@@ -346,6 +349,18 @@ static void remove_room(Room **head, int id) { // 단순히 방을 지우는 함
     return ;
 }
 
+static Client *first_client(Room *target) {
+    Client *current = clients_head;
+
+    while (current != NULL) {
+        if (strcmp(target->host_name, current->name) == 0) {
+            return current;
+        }
+        current = current->next;
+    }
+    return NULL;
+}
+
 int leave_room(Client *target_client) {
     Room *target_room = find_by_room_id(rooms_head, target_client->chat_room);
     if (target_room == NULL)
@@ -353,12 +368,14 @@ int leave_room(Client *target_client) {
     target_client->chat_room = DEFAULT_ROOM;
     if (target_room->clients_num > 0) // 아래에서 0 이하면 삭제해서 빼도 괜찮긴 한데. 언더로 플로우 나는 경우. 일단 방어함.
         target_room->clients_num--;
+    if (strcmp(target_room->host_name, target_client->name) == 0)
+        change_host(first_client(target_room), target_room); // 이 부분 살짝 불안정한가?
     if (target_room->id != DEFAULT_ROOM &&target_room->clients_num <= 0)
         remove_room(&rooms_head, target_room->id);
     return (0);
 }
 
-void remove_room_kick_all_clients(Room *target) { // 암시적으로 방을 삭제한다는 의미도 같이 존재. leave room의 내장 기능에 있기 때문.
+void remove_room_kick_all_clients(Room *target) { // 암시적으로 방을 삭제한다는 의미도 같이 존재. leave_room의 내장 기능에 있기 때문.
     Client *current = clients_head;
     Client *next; // 방이 삭제될 수 있기 때문에 미리 next 저장하게 함.
 
@@ -379,4 +396,9 @@ void free_all_rooms(Room **head) {
         current = next;
     }
     *head = NULL;
+}
+
+void change_host(Client *target_client, Room *target_room) {
+    strncpy(target_room->host_name, target_client->name, NAME_LEN - 1);
+    target_room->host_name[NAME_LEN - 1] = '\0';
 }
