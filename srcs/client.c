@@ -72,9 +72,15 @@ int request_kick_client(Client *kicker, Client *target) {
         send_to_fd("[System] You are not the host of this room.\n", kicker->fd);
         return -1;
     }
-    leave_room(target);
-    send_to_fd("[System] User kicked from the room.\n", kicker->fd);
+
+    char notice[BUF_SIZE];
+    snprintf(notice, sizeof(notice),
+             "[System] User '%s' has been kicked by '%s'.\n",
+             target->name, kicker->name);
+    multicast(notice, kicker);
+
     send_to_fd("[System] You have been kicked from the room.\n", target->fd);
+    leave_room(target);
     return 0;
 }
 
@@ -106,11 +112,59 @@ int request_change_host(Client *host, Client *target) {
     }
 
     if (change_host(target_room, target) == 0) {
+        char msg[BUF_SIZE];
+        snprintf(msg, sizeof(msg),
+                 "[System] '%s' has transferred host privileges to '%s'.\n",
+                 host->name, target->name);
+        multicast(msg, host);
+
         send_to_fd("[System] You are no longer the host.\n", host->fd);
         send_to_fd("[System] You are now the host of this room.\n", target->fd);
     } else {
         send_to_fd("[System] Failed to change host.\n", host->fd);
     }
+
+    return 0;
+}
+
+int request_rename_room(Client *requester, const char *new_name) {
+    if (new_name == NULL || strlen(new_name) == 0) {
+        send_to_fd("[System] New room name cannot be empty.\n", requester->fd);
+        return -1;
+    }
+
+    Room *target_room = find_by_room_id(rooms_head, requester->chat_room);
+    if (target_room == NULL) {
+        send_to_fd("[System] You are not in a valid room.\n", requester->fd);
+        return -1;
+    }
+
+    if (target_room->id == DEFAULT_ROOM) {
+        send_to_fd("[System] Default room name cannot be changed.\n", requester->fd);
+        return -1;
+    }
+
+    if (strcmp(target_room->host_name, requester->name) != 0) {
+        send_to_fd("[System] Only the host can rename the room.\n", requester->fd);
+        return -1;
+    }
+
+    if (find_by_room_name(rooms_head, new_name) != NULL) {
+        send_to_fd("[System] That room name is already taken.\n", requester->fd);
+        return -1;
+    }
+
+    char old_name[NAME_LEN];
+    strncpy(old_name, target_room->name, NAME_LEN);
+    old_name[NAME_LEN - 1] = '\0';
+
+    rename_room(target_room, new_name);
+
+    char msg[BUF_SIZE];
+    snprintf(msg, sizeof(msg),
+             "[System] Room name has been changed from '%s' to '%s' by host.\n",
+             old_name, target_room->name);
+    multicast(msg, target_room);
 
     return 0;
 }
@@ -242,13 +296,52 @@ void *client_thread(void *arg) {
             else if (strncmp(buf, "/kick", 5) == 0) {
                 char *cmd = strtok(buf, " ");
                 char *client_str = strtok(NULL, " ");
+                if (client_str) {
+                    client_str[strcspn(client_str, "\r\n")] = '\0';
+                }
                 if (!client_str) {
                     send_to_fd("[System] Usage: /kick <user_name>\n", fd);
-                }
-                else {
+                } else {
                     pthread_mutex_lock(&mutex);
                     Client *target_client = find_by_client_name(clients_head, client_str);
-                    request_kick_client(self, target_client);
+                    if (target_client == NULL) {
+                        send_to_fd("[System] User not found.\n", fd);
+                    } else {
+                        request_kick_client(self, target_client);
+                    }
+                    pthread_mutex_unlock(&mutex);
+                }
+            }
+            else if (strncmp(buf, "/grant", 6) == 0) {
+                char *cmd = strtok(buf, " ");
+                char *client_str = strtok(NULL, " ");
+                if (client_str) {
+                    client_str[strcspn(client_str, "\r\n")] = '\0';
+                }
+                if (!client_str) {
+                    send_to_fd("[System] Usage: /grant <user_name>\n", fd);
+                } else {
+                    pthread_mutex_lock(&mutex);
+                    Client *target_client = find_by_client_name(clients_head, client_str);
+                    if (target_client == NULL) {
+                        send_to_fd("[System] User not found.\n", fd);
+                    } else {
+                        request_change_host(self, target_client);
+                    }
+                    pthread_mutex_unlock(&mutex);
+                }
+            }
+            else if (strncmp(buf, "/rename", 7) == 0) {
+                char *cmd = strtok(buf, " ");
+                char *client_str = strtok(NULL, " ");
+                if (client_str) {
+                    client_str[strcspn(client_str, "\r\n")] = '\0';
+                }
+                if (!client_str) {
+                    send_to_fd("[System] Usage: /rename <room_name>\n", fd);
+                } else {
+                    pthread_mutex_lock(&mutex);
+                    request_rename_room(self, client_str);
                     pthread_mutex_unlock(&mutex);
                 }
             }

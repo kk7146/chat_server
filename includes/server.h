@@ -61,5 +61,6 @@ int leave_room(Client *target_client);
 void free_all_rooms(Room **head);
 void remove_room_kick_all_clients(Room *target); // 방 삭제랑 동일한 의미
 int change_host(Room *target_Room, Client *target_client);
+int rename_room(Room *target_room, const char *name);
 
 #endif

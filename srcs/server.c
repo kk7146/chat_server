@@ -317,7 +317,7 @@ Room *add_room(Room **head, const char *name, int fd, int room_size) {
         curr->next = new_node;
         new_node->prev = curr;
     }
-    return (0);
+    return new_node;
 }
 
 int join_room(Client *target_client, Room *target_room) {
@@ -378,6 +378,18 @@ int leave_room(Client *target_client) {
 int change_host(Room *target_room, Client *target_client) {
     strncpy(target_room->host_name, target_client->name, NAME_LEN - 1);
     target_room->host_name[NAME_LEN - 1] = '\0';
+    return 0;
+}
+
+int rename_room(Room *target_room, const char *name) {
+    if (!target_room || !name || strlen(name) == 0) {
+        return -1;
+    }
+    if (strncmp(target_room->name, name, NAME_LEN) == 0) {
+        return 0;
+    }
+    strncpy(target_room->name, name, NAME_LEN - 1);
+    target_room->name[NAME_LEN - 1] = '\0';
     return 0;
 }
 
