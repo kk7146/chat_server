@@ -7,17 +7,23 @@
 #include "client.h"
 #include "message.h"
 
+static void send_to_fd(const char *msg, int fd) { // unicast self는 락 걸어야 하는데 그럴 필요가 없을 때 쓰기 좋음.
+    if (fd == -1)
+        return ;
+    send(fd, msg, strlen(msg), 0);
+}
+
 // 이름 받고 클라이언트 등록 시도
 static Client *name_register(int fd) {
     char name[NAME_LEN];
 
-    send(fd, "Enter your name: ", 18, 0);
+    send_to_fd("Enter your name: ", fd);
     int len = recv(fd, name, NAME_LEN - 1, 0);
     if (len <= 0) return NULL;
 
     name[len - 1] = '\0';
     if (find_by_client_name(clients_head, name)) {
-        send(fd, "[System] That name is already taken.\n", 37, 0);
+        send_to_fd("[System] That name is already taken.\n", fd);
         return NULL;
     }
 
@@ -39,15 +45,74 @@ static Client *handle_client_registration(int fd) {
             printf("[LOG] %s connected\n", self->name);
             return self;
         }
-        send(fd, "[System] Try another name.\n", 29, 0);
+        send_to_fd("[System] Try another name.\n", fd);
     }
     return NULL;
 }
 
-static void send_to_fd(const char *msg, int fd) { // unicast self는 락 걸어야 하는데 그럴 필요가 없을 때 쓰기 좋음.
-    if (fd == -1)
-        return ;
-    send(fd, msg, strlen(msg), 0);
+int request_kick_client(Client *kicker, Client *target) {
+    if (target == NULL) {
+        send_to_fd("[System] Invalid client name.\n", kicker->fd);
+        return -1;
+    }
+    Room *target_room = find_by_room_id(rooms_head, target->chat_room);
+    if (target_room == NULL) {
+        send_to_fd("[System] Invalid room name.\n", kicker->fd);
+        return -1;
+    }
+    if (target == kicker) {
+        send_to_fd("[System] You cannot kick yourself.\n", kicker->fd);
+        return -1;
+    }
+    if (target->chat_room != kicker->chat_room) {
+        send_to_fd("[System] That user is not in your room.\n", kicker->fd);
+        return -1;
+    }
+    if (strcmp(target_room->host_name, kicker->name) != 0) {
+        send_to_fd("[System] You are not the host of this room.\n", kicker->fd);
+        return -1;
+    }
+    leave_room(target);
+    send_to_fd("[System] User kicked from the room.\n", kicker->fd);
+    send_to_fd("[System] You have been kicked from the room.\n", target->fd);
+    return 0;
+}
+
+int request_change_host(Client *host, Client *target) {
+    if (target == NULL) {
+        send_to_fd("[System] Invalid client name.\n", host->fd);
+        return -1;
+    }
+
+    Room *target_room = find_by_room_id(rooms_head, target->chat_room);
+    if (target_room == NULL) {
+        send_to_fd("[System] Invalid room name.\n", host->fd);
+        return -1;
+    }
+
+    if (host == target) {
+        send_to_fd("[System] You cannot change yourself.\n", host->fd);
+        return -1;
+    }
+
+    if (target->chat_room != host->chat_room) {
+        send_to_fd("[System] That user is not in your room.\n", host->fd);
+        return -1;
+    }
+
+    if (strcmp(target_room->host_name, host->name) != 0) {
+        send_to_fd("[System] You are not the host of this room.\n", host->fd);
+        return -1;
+    }
+
+    if (change_host(target_room, target) == 0) {
+        send_to_fd("[System] You are no longer the host.\n", host->fd);
+        send_to_fd("[System] You are now the host of this room.\n", target->fd);
+    } else {
+        send_to_fd("[System] Failed to change host.\n", host->fd);
+    }
+
+    return 0;
 }
 
 void *client_thread(void *arg) {
@@ -171,6 +236,19 @@ void *client_thread(void *arg) {
                         send_to_fd("[System] Failed to enter the chat room.\n", fd);
                     else
                         send_to_fd("[System] You have entered the chat room.\n", fd);
+                    pthread_mutex_unlock(&mutex);
+                }
+            }
+            else if (strncmp(buf, "/kick", 5) == 0) {
+                char *cmd = strtok(buf, " ");
+                char *client_str = strtok(NULL, " ");
+                if (!client_str) {
+                    send_to_fd("[System] Usage: /kick <user_name>\n", fd);
+                }
+                else {
+                    pthread_mutex_lock(&mutex);
+                    Client *target_client = find_by_client_name(clients_head, client_str);
+                    request_kick_client(self, target_client);
                     pthread_mutex_unlock(&mutex);
                 }
             }

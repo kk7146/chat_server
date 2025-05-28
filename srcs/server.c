@@ -326,7 +326,7 @@ int join_room(Client *target_client, Room *target_room) {
     if (target_room->max_clients <= target_room->clients_num)
         return -1;
     if (target_room->id != DEFAULT_ROOM && target_room->host_name[0] == '\0') {
-        change_host(target_client, target_room);
+        change_host(target_room, target_client);
     }
     target_client->chat_room = target_room->id;
     target_room->clients_num++;
@@ -375,6 +375,14 @@ int leave_room(Client *target_client) {
     return (0);
 }
 
+int change_host(Room *target_room, Client *target_client) {
+    strncpy(target_room->host_name, target_client->name, NAME_LEN - 1);
+    target_room->host_name[NAME_LEN - 1] = '\0';
+    return 0;
+}
+
+
+
 void remove_room_kick_all_clients(Room *target) { // 암시적으로 방을 삭제한다는 의미도 같이 존재. leave_room의 내장 기능에 있기 때문.
     Client *current = clients_head;
     Client *next; // 방이 삭제될 수 있기 때문에 미리 next 저장하게 함.
@@ -388,6 +396,8 @@ void remove_room_kick_all_clients(Room *target) { // 암시적으로 방을 삭�
     }
 }
 
+
+
 void free_all_rooms(Room **head) {
     Room *current = *head;
     while (current != NULL) {
@@ -396,9 +406,4 @@ void free_all_rooms(Room **head) {
         current = next;
     }
     *head = NULL;
-}
-
-void change_host(Client *target_client, Room *target_room) {
-    strncpy(target_room->host_name, target_client->name, NAME_LEN - 1);
-    target_room->host_name[NAME_LEN - 1] = '\0';
 }
