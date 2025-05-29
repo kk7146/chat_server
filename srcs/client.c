@@ -78,6 +78,7 @@ int request_kick_client(Client *kicker, Client *target) {
              "[System] User '%s' has been kicked by '%s'.\n",
              target->name, kicker->name);
     multicast(notice, kicker);
+    send_to_fd(notice, kicker->fd);
 
     send_to_fd("[System] You have been kicked from the room.\n", target->fd);
     leave_room(target);
@@ -117,6 +118,7 @@ int request_change_host(Client *host, Client *target) {
                  "[System] '%s' has transferred host privileges to '%s'.\n",
                  host->name, target->name);
         multicast(msg, host);
+        send_to_fd(msg, host->fd);
 
         send_to_fd("[System] You are no longer the host.\n", host->fd);
         send_to_fd("[System] You are now the host of this room.\n", target->fd);
@@ -164,7 +166,8 @@ int request_rename_room(Client *requester, const char *new_name) {
     snprintf(msg, sizeof(msg),
              "[System] Room name has been changed from '%s' to '%s' by host.\n",
              old_name, target_room->name);
-    multicast(msg, target_room);
+    multicast(msg, requester);
+    send_to_fd(msg, requester->fd);
 
     return 0;
 }
