@@ -18,7 +18,7 @@ void *admin_thread(void *arg) {
         cmd[len] = '\0';
 
         if (strncmp(cmd, "users", 5) == 0) {
-            const char *info = show_users(1);
+            const char *info = show_clients(1);
             send(admin_fd, info, strlen(info), 0);
         }
         if (strncmp(cmd, "chats", 5) == 0) {
