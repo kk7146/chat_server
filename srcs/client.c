@@ -7,7 +7,8 @@
 #include "client.h"
 #include "message.h"
 
-static void send_to_fd(const char *msg, int fd) { // unicast self는 락 걸어야 하는데 그럴 필요가 없을 때 쓰기 좋음.
+// unicast self는 락 걸어야 하는데 그럴 필요가 없을 때 쓰기 좋음.
+static void send_to_fd(const char *msg, int fd) {
     if (fd == -1)
         return ;
     send(fd, msg, strlen(msg), 0);
@@ -200,7 +201,6 @@ void *client_thread(void *arg) {
                     if (newline) *newline = '\0';
                 }
                 snprintf(msg, sizeof msg, "[%s] dm(%s)\n", self->name, msg_dm);
-            
                 pthread_mutex_lock(&mutex);
                 Client *target = find_by_client_name(clients_head, name_str);
                 if (target && msg_dm) {
@@ -210,52 +210,51 @@ void *client_thread(void *arg) {
                 }
                 pthread_mutex_unlock(&mutex);
             }
-            else if (strncmp(buf, "/start", 6) == 0) {
-                char *cmd = strtok(buf, " ");
-                char *target_name = strtok(NULL, " \n");
-            
-                if (target_name) {
-                    pthread_mutex_lock(&mutex);
-                    Client* target = find_by_client_name(clients_head, target_name);
-                    if (target != NULL) {
-                        target->pending_request_from = self;
-                        snprintf(msg, sizeof msg, "[System] %s has requested a 1:1 chat. Type /accept to join.\n", self->name);
-                        unicast(msg, target);
-                    } else {
-                        unicast("[System] User not found.\n", self);
-                    }
-                    pthread_mutex_unlock(&mutex);
-                } else {
-                    send_to_fd("Usage: /start <id>\n", fd);
-                }
-            }
-            else if (strncmp(buf, "/accept", 7) == 0) {
-                Client *requester = self->pending_request_from;
-                if (requester != NULL && requester->fd != -1) {
-                    char room_name[NAME_LEN * 2 + 4];
-                    snprintf(room_name, sizeof(room_name), "%s&%s", requester->name, self->name);
-
-                    pthread_mutex_lock(&mutex);
-                    Room *room_new = add_room(&rooms_head, room_name, self->fd, 2);
-                    if (room_new != NULL) {
-                        join_room(requester, room_new);
-                        join_room(self, room_new);
-                        self->pending_request_from = NULL;
-            
-                        snprintf(msg, sizeof msg, "[System] 1:1 chat with %s started.\n", requester->name);
-                        unicast(msg, self);
-            
-                        snprintf(msg, sizeof msg, "[System] %s accepted your request.\n", self->name);
-                        unicast(msg, requester);
-                        printf("[LOG] %s created room '%s' (size %d)\n", self->name, room_name, 2);
-                    } else {
-                        send_to_fd("[System] Failed to create room.\n", fd);
-                    }
-                    pthread_mutex_unlock(&mutex);
-                } else {
-                    send_to_fd("[System] No pending requests.\n", fd);
-                }
-            }
+            //else if (strncmp(buf, "/start", 6) == 0) {
+            //    char *cmd = strtok(buf, " ");
+            //    char *target_name = strtok(NULL, " \n");
+            //
+            //    if (target_name) {
+            //        pthread_mutex_lock(&mutex);
+            //        Client* target = find_by_client_name(clients_head, target_name);
+            //        if (target != NULL) {
+            //            target->pending_request_from = self;
+            //            snprintf(msg, sizeof msg, "[System] %s has requested a 1:1 chat. Type /accept to join.\n", self->name);
+            //            unicast(msg, target);
+            //        } else {
+            //            unicast("[System] User not found.\n", self);
+            //        }
+            //        pthread_mutex_unlock(&mutex);
+            //    } else {
+            //        send_to_fd("Usage: /start <id>\n", fd);
+            //    }
+            //}
+            //else if (strncmp(buf, "/accept", 7) == 0) {
+            //    Client *requester = self->pending_request_from;
+            //    if (requester != NULL && requester->fd != -1) {
+            //        char room_name[NAME_LEN * 2 + 4];
+            //        snprintf(room_name, sizeof(room_name), "%s&%s", requester->name, self->name);
+            //        pthread_mutex_lock(&mutex);
+            //        Room *room_new = add_room(&rooms_head, room_name, self->fd, 2);
+            //        if (room_new != NULL) {
+            //            join_room(requester, room_new);
+            //            join_room(self, room_new);
+            //            self->pending_request_from = NULL;
+            //
+            //            snprintf(msg, sizeof msg, "[System] 1:1 chat with %s started.\n", requester->name);
+            //            unicast(msg, self);
+            //
+            //            snprintf(msg, sizeof msg, "[System] %s accepted your request.\n", self->name);
+            //            unicast(msg, requester);
+            //            printf("[LOG] %s created room '%s' (size %d)\n", self->name, room_name, 2);
+            //        } else {
+            //            send_to_fd("[System] Failed to create room.\n", fd);
+            //        }
+            //        pthread_mutex_unlock(&mutex);
+            //    } else {
+            //        send_to_fd("[System] No pending requests.\n", fd);
+            //    }
+            //}
             else if (strncmp(buf, "/new", 4) == 0) {
                 char *cmd = strtok(buf, " ");
                 char *room_name = strtok(NULL, " ");

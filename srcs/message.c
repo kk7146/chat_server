@@ -5,6 +5,12 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 #include "message.h"
+#include "packet.h"
+
+void send_packet_to(Client *target, PacketType type, const char *msg) {
+    if (target == NULL || msg == NULL) return;
+    send_packet(target->fd, type, msg, strlen(msg));
+}
 
 void broadcast(const char *msg, Client* self) {
     Client *current = clients_head;

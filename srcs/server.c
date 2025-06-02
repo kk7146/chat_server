@@ -363,7 +363,8 @@ int rename_room(Room *target_room, const char *name) {
     return 0;
 }
 
-static void remove_room(Room **head, int id) { // 단순히 방을 지우는 함수. 외부에서 호출되면 안될 듯. 방에 있는 유저 고려는 안 했음.
+// 단순히 방을 지우는 함수. 외부에서 호출되면 안됨. 방에 있는 유저 고려는 안 했음.
+static void remove_room(Room **head, int id) {
     Room *remove_node = find_by_room_id(*head, id);
 
     if (remove_node == NULL)
@@ -393,7 +394,8 @@ int leave_room(Client *target_client) {
     return (0);
 }
 
-void remove_room_kick_all_clients(Room *target) { // 방을 삭제할 때 호출. 유저 관리까지 포함.
+// 방을 삭제할 때 호출. 유저 관리까지 포함.
+void remove_room_kick_all_clients(Room *target) {
     Client *current = clients_head;
     Client *next; // 방이 삭제될 수 있기 때문에 미리 next 저장하게 함.
 
@@ -405,7 +407,6 @@ void remove_room_kick_all_clients(Room *target) { // 방을 삭제할 때 호출
         current = next;
     }
 }
-
 
 void free_all_rooms(Room **head) {
     Room *current = *head;
