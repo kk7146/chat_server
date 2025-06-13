@@ -9,6 +9,7 @@ Client *clients_head = NULL;
 Room *rooms_head = NULL;
 pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 
+
 char *show_clients(int isAdmin) {
     static char list[BUF_SIZE * 4];
     size_t used = 0;

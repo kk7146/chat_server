@@ -6,28 +6,26 @@
 #include <sys/socket.h>
 #include "client.h"
 #include "message.h"
+#include "packet.h"
 
-// unicast self는 락 걸어야 하는데 그럴 필요가 없을 때 쓰기 좋음.
-static void send_to_fd(const char *msg, int fd) {
-    if (fd == -1)
-        return ;
-    send(fd, msg, strlen(msg), 0);
-}
-
-// 이름 받고 클라이언트 등록 시도
+// 이름 받고 클라이언트 등록
 static Client *name_register(int fd) {
+    PacketHeader header;
     char name[NAME_LEN];
 
-    send_to_fd("Enter your name: ", fd);
-    int len = recv(fd, name, NAME_LEN - 1, 0);
-    if (len <= 0) return NULL;
-
-    name[len - 1] = '\0';
-    if (find_by_client_name(clients_head, name)) {
-        send_to_fd("[System] That name is already taken.\n", fd);
+    send_packet(fd, PACKET_TYPE_MESSAGE, "Enter your name:", strlen("Enter your name:"));
+    if (recv_packet(fd, &header, name, sizeof(name)) < 0) {
         return NULL;
     }
-
+    if (header.type != PACKET_TYPE_LOGIN) {
+        send_packet(fd, PACKET_TYPE_MESSAGE, "[System] Invalid packet type for name registration.\n", 52);
+        return NULL;
+    }
+    name[header.length < NAME_LEN - 1 ? header.length : NAME_LEN - 1] = '\0';
+    if (find_by_client_name(clients_head, name)) {
+        send_packet(fd, PACKET_TYPE_MESSAGE, "[System] That name is already taken.\n", 38);
+        return NULL;
+    }
     pthread_mutex_lock(&mutex);
     Client *result = add_client(&clients_head, name, fd, DEFAULT_ROOM, NULL);
     pthread_mutex_unlock(&mutex);
@@ -35,7 +33,7 @@ static Client *name_register(int fd) {
     return result;
 }
 
-// 루프 돌면서 이름 등록 시도
+// 루프 돌면서 이름 등록
 static Client *handle_client_registration(int fd) {
     while (1) {
         Client *self = name_register(fd);
