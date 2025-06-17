@@ -9,6 +9,7 @@ Client *clients_head = NULL;
 Room *rooms_head = NULL;
 pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 
+
 char *show_clients(int isAdmin) {
     static char list[BUF_SIZE * 4];
     size_t used = 0;
@@ -333,22 +334,6 @@ int join_room(Client *target_client, Room *target_room) {
     return (0);
 }
 
-static void remove_room(Room **head, int id) { // 단순히 방을 지우는 함수. 외부에서 호출되면 안될 듯.
-    Room *remove_node = find_by_room_id(*head, id);
-
-    if (remove_node == NULL)
-        return ;
-    if (remove_node->prev != NULL)
-        remove_node->prev->next = remove_node->next;
-    else
-        *head = remove_node->next;
-    if (remove_node->next != NULL)
-        remove_node->next->prev = remove_node->prev;
-    
-    free(remove_node);
-    return ;
-}
-
 static Client *first_client(Room *target) {
     Client *current = clients_head;
 
@@ -359,20 +344,6 @@ static Client *first_client(Room *target) {
         current = current->next;
     }
     return NULL;
-}
-
-int leave_room(Client *target_client) {
-    Room *target_room = find_by_room_id(rooms_head, target_client->chat_room);
-    if (target_room == NULL)
-        return -1;
-    target_client->chat_room = DEFAULT_ROOM;
-    if (target_room->clients_num > 0) // 아래에서 0 이하면 삭제해서 빼도 괜찮긴 한데. 언더로 플로우 나는 경우. 일단 방어함.
-        target_room->clients_num--;
-    if (strcmp(target_room->host_name, target_client->name) == 0)
-        change_host(first_client(target_room), target_room); // 이 부분 살짝 불안정한가?
-    if (target_room->id != DEFAULT_ROOM &&target_room->clients_num <= 0)
-        remove_room(&rooms_head, target_room->id);
-    return (0);
 }
 
 int change_host(Room *target_room, Client *target_client) {
@@ -393,22 +364,50 @@ int rename_room(Room *target_room, const char *name) {
     return 0;
 }
 
+// 단순히 방을 지우는 함수. 외부에서 호출되면 안됨. 방에 있는 유저 고려는 안 했음.
+static void remove_room(Room **head, int id) {
+    Room *remove_node = find_by_room_id(*head, id);
 
+    if (remove_node == NULL)
+        return ;
+    if (remove_node->prev != NULL)
+        remove_node->prev->next = remove_node->next;
+    else
+        *head = remove_node->next;
+    if (remove_node->next != NULL)
+        remove_node->next->prev = remove_node->prev;
+    
+    free(remove_node);
+    return ;
+}
 
-void remove_room_kick_all_clients(Room *target) { // 암시적으로 방을 삭제한다는 의미도 같이 존재. leave_room의 내장 기능에 있기 때문.
+int leave_room(Client *target_client) {
+    Room *target_room = find_by_room_id(rooms_head, target_client->chat_room);
+    if (target_room == NULL)
+        return -1;
+    target_client->chat_room = DEFAULT_ROOM;
+    if (target_room->clients_num > 0) // 아래에서 0 이하면 삭제해서 빼도 괜찮긴 한데. 언더로 플로우 나는 경우. 일단 방어함.
+        target_room->clients_num--;
+    if (strcmp(target_room->host_name, target_client->name) == 0)
+        change_host(first_client(target_room), target_room); // 이 부분 살짝 불안정한가?
+    if (target_room->id != DEFAULT_ROOM &&target_room->clients_num <= 0)
+        remove_room(&rooms_head, target_room->id);
+    return (0);
+}
+
+// 방을 삭제할 때 호출. 유저 관리까지 포함.
+void remove_room_kick_all_clients(Room *target) {
     Client *current = clients_head;
     Client *next; // 방이 삭제될 수 있기 때문에 미리 next 저장하게 함.
 
     while (current != NULL) {
         next = current->next;  // 미리 next 저장
         if (current->chat_room == target->id) {
-            leave_room(current);
+            leave_room(current); // leave_room 내부에 remove_room 호출하는게 있음.
         }
         current = next;
     }
 }
-
-
 
 void free_all_rooms(Room **head) {
     Room *current = *head;

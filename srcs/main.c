@@ -6,7 +6,7 @@
 #include <arpa/inet.h>
 #include <pthread.h>
 #include <netinet/in.h>
-#include "socket_util.h"
+#include "network.h"
 #include "admin.h"
 #include "server.h"
 

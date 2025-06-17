@@ -7,7 +7,7 @@
 #include <fcntl.h>
 
 #include "client.h"
-#include "socket_util.h"
+#include "network.h"
 
 void *accept_loop(void *arg) {
     int server_fd = *(int *)arg;
