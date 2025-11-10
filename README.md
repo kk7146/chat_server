@@ -1,5 +1,5 @@
 ## Chat Server & Client
-C, pthread, ncurses 기반으로 구현된 멀티스레드 TCP 채팅 프로그램*입니다.
+C, pthread, ncurses 기반으로 구현된 멀티스레드 TCP 채팅 프로그램입니다.
 여러 클라이언트가 동시에 서버에 접속하여 터미널 UI를 통해 실시간으로 메시지를 주고받을 수 있습니다.
 
 ### 주요 기능
