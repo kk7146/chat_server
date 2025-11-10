@@ -4,7 +4,8 @@ docker run -it --init -p 9000:9000 -p 9001:9001 chat-server
 
 # 클라이언트
 nc 127.0.0.1 9000
-
+또는
+https://github.com/kk7146/chat_server_client
 
 # 추가한 부분
 - 이름 중복 불가하게 만들었음
